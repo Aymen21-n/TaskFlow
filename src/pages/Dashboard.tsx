@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [columns, setColumns] = useState<Column[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -59,6 +60,7 @@ export default function Dashboard() {
       const res = await api.post<Project>('/projects', { name, color });
       setProjects((prev) => [...prev, res.data]);
       setShowForm(false);
+      setEditingProject(null);
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const message = err.response?.data?.message || `Erreur ${err.response?.status}`;
@@ -71,15 +73,25 @@ export default function Dashboard() {
     }
   }
 
-  async function renameProject(project: Project) {
-    const newName = prompt('Nouveau nom du projet:', project.name);
-    if (!newName || newName === project.name) return;
+  function renameProject(project: Project) {
+    setEditingProject(project);
+    setShowForm(false);
+  }
+
+  async function submitRenameProject(name: string, color: string) {
+    if (!editingProject || name === '' || name === editingProject.name) {
+      setEditingProject(null);
+      return;
+    }
 
     try {
-      await api.put(`/projects/${project.id}`, { ...project, name: newName });
-      setProjects((prev) =>
-        prev.map((p) => (p.id === project.id ? { ...p, name: newName } : p))
-      );
+      const { data } = await api.put<Project>('/projects/' + editingProject.id, {
+        ...editingProject,
+        name,
+        color,
+      });
+      setProjects((prev) => prev.map((p) => (p.id === data.id ? data : p)));
+      setEditingProject(null);
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const message = err.response?.data?.message || `Erreur ${err.response?.status}`;
@@ -91,10 +103,10 @@ export default function Dashboard() {
   }
 
   async function deleteProject(id: string) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce projet?')) return;
+    if (!confirm('Êtes-vous sûr ?')) return;
 
     try {
-      await api.delete(`/projects/${id}`);
+      await api.delete('/projects/' + id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -119,18 +131,27 @@ export default function Dashboard() {
         onLogout={() => dispatch({ type: 'LOGOUT' })}
       />
       <div className={styles.body}>
-        <Sidebar projects={projects} isOpen={sidebarOpen} />
+        <Sidebar
+          projects={projects}
+          isOpen={sidebarOpen}
+          onRename={renameProject}
+          onDelete={deleteProject}
+        />
         <div className={styles.content}>
           <div className={styles.toolbar}>
-            {!showForm ? (
+            {!showForm && !editingProject ? (
               <button
                 className={styles.addBtn}
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  setEditingProject(null);
+                  setShowForm(true);
+                }}
                 disabled={saving}
               >
                 + Nouveau projet
               </button>
-            ) : (
+            ) : null}
+            {showForm ? (
               <ProjectForm
                 initialName=""
                 initialColor="#3498db"
@@ -138,7 +159,17 @@ export default function Dashboard() {
                 onCancel={() => setShowForm(false)}
                 submitLabel="Ajouter"
               />
-            )}
+            ) : null}
+            {editingProject ? (
+              <ProjectForm
+                key={editingProject.id}
+                initialName={editingProject.name}
+                initialColor={editingProject.color}
+                onSubmit={submitRenameProject}
+                onCancel={() => setEditingProject(null)}
+                submitLabel="Renommer"
+              />
+            ) : null}
           </div>
           {error && <div className={styles.error}>{error}</div>}
           <MainContent columns={columns} />
