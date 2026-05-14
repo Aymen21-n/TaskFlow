@@ -26,6 +26,7 @@ export default function Sidebar({ projects, isOpen, onRename, onDelete }: Sideba
               className={({ isActive }) =>
                 styles.item + (isActive ? ' ' + styles.active : '')
               }
+              style={{ flex: 1 }}
             >
               <span className={styles.dot} style={{ background: p.color }} />
               <span className={styles.name} title={p.name}>
