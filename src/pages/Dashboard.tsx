@@ -1,121 +1,42 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { useAuth } from '../features/auth/AuthContext';
-import api from '../api/axios';
+import { useCallback, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import MainContent from '../components/MainContent';
 import ProjectForm from '../components/ProjectForm';
+import { logout } from '../features/auth/authSlice';
+import useProjects from '../hooks/useProjects';
+import type { Project } from '../hooks/useProjects';
+import type { RootState } from '../store';
 import styles from './Dashboard.module.css';
 
-interface Project {
-  id: string;
-  name: string;
-  color: string;
-}
-
-interface Column {
-  id: string;
-  title: string;
-  tasks: string[];
-}
-
 export default function Dashboard() {
-  const { state, dispatch } = useAuth();
+  const authState = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [columns, setColumns] = useState<Column[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { projects, columns, loading, error, addProject, renameProject, deleteProject } = useProjects();
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [projRes, colRes] = await Promise.all([
-          api.get<Project[]>('/projects'),
-          api.get<Column[]>('/columns'),
-        ]);
-
-        setProjects(projRes.data);
-        setColumns(colRes.data);
-      } catch (err) {
-        console.error('Erreur:', err);
-        setError('Erreur lors du chargement des données');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
+  const handleRename = useCallback((project: Project) => {
+    setShowForm(false);
+    setEditingProject(project);
   }, []);
 
-  async function addProject(name: string, color: string) {
-    setSaving(true);
-    setError(null);
+  const handleDelete = useCallback((id: string) => {
+    deleteProject(id);
+  }, []);
 
-    try {
-      const res = await api.post<Project>('/projects', { name, color });
-      setProjects((prev) => [...prev, res.data]);
-      setShowForm(false);
-      setEditingProject(null);
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const message = err.response?.data?.message || `Erreur ${err.response?.status}`;
-        setError(message);
-      } else {
-        setError('Erreur inconnue');
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function renameProject(project: Project) {
-    setEditingProject(project);
+  async function handleAddProject(name: string, color: string) {
+    await addProject(name, color);
     setShowForm(false);
   }
 
-  async function submitRenameProject(name: string, color: string) {
-    if (!editingProject || name === '' || name === editingProject.name) {
-      setEditingProject(null);
-      return;
-    }
+  async function handleRenameProject(name: string) {
+    if (!editingProject) return;
 
-    try {
-      const { data } = await api.put<Project>('/projects/' + editingProject.id, {
-        ...editingProject,
-        name,
-        color,
-      });
-      setProjects((prev) => prev.map((p) => (p.id === data.id ? data : p)));
-      setEditingProject(null);
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const message = err.response?.data?.message || `Erreur ${err.response?.status}`;
-        setError(message);
-      } else {
-        setError('Erreur inconnue');
-      }
-    }
-  }
-
-  async function deleteProject(id: string) {
-    if (!confirm('Êtes-vous sûr ?')) return;
-
-    try {
-      await api.delete('/projects/' + id);
-      setProjects((prev) => prev.filter((p) => p.id !== id));
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const message = err.response?.data?.message || `Erreur ${err.response?.status}`;
-        setError(message);
-      } else {
-        setError('Erreur inconnue');
-      }
-    }
+    await renameProject(editingProject, name);
+    setEditingProject(null);
   }
 
   if (loading) {
@@ -127,15 +48,15 @@ export default function Dashboard() {
       <Header
         title="TaskFlow"
         onMenuClick={() => setSidebarOpen((prev) => !prev)}
-        userName={state.user?.name}
-        onLogout={() => dispatch({ type: 'LOGOUT' })}
+        userName={authState.user?.name}
+        onLogout={() => dispatch(logout())}
       />
       <div className={styles.body}>
         <Sidebar
           projects={projects}
           isOpen={sidebarOpen}
-          onRename={renameProject}
-          onDelete={deleteProject}
+          onRename={handleRename}
+          onDelete={handleDelete}
         />
         <div className={styles.content}>
           <div className={styles.toolbar}>
@@ -146,7 +67,6 @@ export default function Dashboard() {
                   setEditingProject(null);
                   setShowForm(true);
                 }}
-                disabled={saving}
               >
                 + Nouveau projet
               </button>
@@ -155,7 +75,7 @@ export default function Dashboard() {
               <ProjectForm
                 initialName=""
                 initialColor="#3498db"
-                onSubmit={addProject}
+                onSubmit={handleAddProject}
                 onCancel={() => setShowForm(false)}
                 submitLabel="Ajouter"
               />
@@ -165,7 +85,7 @@ export default function Dashboard() {
                 key={editingProject.id}
                 initialName={editingProject.name}
                 initialColor={editingProject.color}
-                onSubmit={submitRenameProject}
+                onSubmit={handleRenameProject}
                 onCancel={() => setEditingProject(null)}
                 submitLabel="Renommer"
               />

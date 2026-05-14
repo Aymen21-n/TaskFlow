@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { useDispatch, useSelector } from 'react-redux';
 import api from '../../api/axios';
+import type { RootState } from '../../store';
+import { loginFailure, loginStart, loginSuccess } from './authSlice';
 import styles from './Login.module.css';
 
 export default function Login() {
-  const { state, dispatch } = useAuth();
+  const dispatch = useDispatch();
+  const { user: authUser, loading, error } = useSelector((state: RootState) => state.auth);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
@@ -14,28 +17,36 @@ export default function Login() {
   const from = (location.state as any)?.from || '/dashboard';
 
   useEffect(() => {
-    if (state.user) {
+    if (authUser) {
       navigate(from, { replace: true });
     }
-  }, [state.user, navigate, from]);
+  }, [authUser, navigate, from]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    dispatch({ type: 'LOGIN_START' });
+    dispatch(loginStart());
 
     try {
       const users = await api.get(`/users?email=${encodeURIComponent(email)}`);
 
       if (!Array.isArray(users.data) || users.data.length === 0 || users.data[0].password !== password) {
-        dispatch({ type: 'LOGIN_FAILURE', payload: 'Email ou mot de passe incorrect' });
+        dispatch(loginFailure('Email ou mot de passe incorrect'));
         return;
       }
 
       const { password: _, ...user } = users.data[0];
-      dispatch({ type: 'LOGIN_SUCCESS', payload: user });
+      const fakeToken = btoa(
+        JSON.stringify({
+          userId: user.id,
+          email: user.email,
+          role: 'admin',
+          exp: Date.now() + 3600000,
+        })
+      );
+      dispatch(loginSuccess({ user, token: fakeToken }));
     } catch (error) {
-      dispatch({ type: 'LOGIN_FAILURE', payload: 'Erreur serveur' });
+      dispatch(loginFailure('Erreur serveur'));
     }
   }
 
@@ -44,7 +55,7 @@ export default function Login() {
       <form className={styles.form} onSubmit={handleSubmit}>
         <h1 className={styles.title}>TaskFlow</h1>
         <p className={styles.subtitle}>Connectez-vous pour accéder à votre espace de gestion de tâches.</p>
-        {state.error ? <div className={styles.error}>{state.error}</div> : null}
+        {error ? <div className={styles.error}>{error}</div> : null}
         <input
           className={styles.input}
           type="email"
@@ -61,8 +72,8 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <button className={styles.button} type="submit" disabled={state.loading}>
-          {state.loading ? 'Connexion...' : 'Se connecter'}
+        <button className={styles.button} type="submit" disabled={loading}>
+          {loading ? 'Connexion...' : 'Se connecter'}
         </button>
       </form>
     </div>
