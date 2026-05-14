@@ -47,16 +47,18 @@
 }
 
 .logoutBtn {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  padding: 0.4rem 0.8rem;
+  background: white;
+  border: 2px solid #1B8C3E;
+  color: #1B8C3E;
+  font-weight: 600;
+  padding: 0.4rem 1rem;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.85rem;
-  transition: background 0.2s;
+  transition: background 0.2s, color 0.2s;
 }
 
 .logoutBtn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: #1B8C3E;
+  color: white;
 }
